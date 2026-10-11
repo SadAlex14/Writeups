@@ -5,7 +5,7 @@ i don't remember the chall text, lmao, but it was really cool
 ```
 
 ### Scouting time (´•_•`;)
-Looking at the decompiled code, you can see that even though a pointer is freed in the function `destroy_relic`, in the other functions `inscribe_relic` and `inspect_relic`, it is not verified if the selected pointer was previously freed or not
+Looking at the decompiled code, you can see that, even though a pointer is freed in the `destroy_relic` function, the other functions `inscribe_relic` and `inspect_relic`, do not check whether the selected pointer has already been freed or not
 
 ```C
 //destroy_relic
@@ -31,21 +31,21 @@ printf("[*] Relic [%d]: ", index);
   write(1, &relic[index], &size[index]);
   putchar(10);
 ```
-This is a **use after free** vulnerability! We will need that later
+This is a **use-after-free** vulnerability! We will need that later
 
 There are two other significant details:
-running `checksec --file=corroded_crown` we can see that NX is disabled and in the .zip file, we are given a `glibc` directory, where we can find the libc version. In this case:
+by running `checksec --file=corroded_crown` we can see that NX is disabled. Second, the .zip file contains a `glibc` directory, where we can find the libc version. In this case:
 ```bash
 strings libc.so.6 | grep "GNU C Library"
 GNU C Library (Ubuntu GLIBC 2.31-0ubuntu9.17) stable release version 2.31.
 ``` 
-*Cool, Safe Linking is not available in this version of libc, so we can write raw pointers instead of needing an additional heap leak to bypass pointer mangling (XORing the pointer before writing it)*
+*Cool, Safe Linking is not available in this version of libc, so we can write raw pointers without needing an additional heap leak to bypass pointer mangling (XORing the pointer before writing it)*
 
 ---
 
 ### Exploitation time ヾ(⌐■ㅅ■)ノ
 
-A **use after free** vuln opens to many exploiting tecniques, such as **tcache poisoning**. 
+A **use-after-free** vuln opens up to many exploiting tecniques, such as **tcache poisoning**. 
 *Wait-! Before casting* **tcache poisoning** *I have to check my spellbook to remember how it's done!*
 
 STEP 1: Two chunks allocated (size 0x20)
@@ -105,15 +105,15 @@ STEP 5: malloc() -> returns TARGET address!
     └──────────────────────────────┘
 
 
-Then, we will likely end up writing shellcode since NX is off. Also, i'm a big fan of this photo, which contains the secret to unlock the ultimate skill: **Pivoting Around Memory**
+Then, we will likely end up writing shellcode since NX is disabled. Also, I'm a big fan of this photo, which contains the secret to unlocking the ultimate skill: **Pivoting Around Memory**
 
 ![Pivoting around memory from https://blog.osiris.cyber.nyu.edu/2019/04/06/pivoting-around-memory/](images/pivoting)
 
 From here, we have all we need to define a strategy.
 
-First, we need a libc leak. We can obtain that by leaking a pointer to `main_arena`, an area of the libc that track and manage the memory heap of the main thread. Since chunks in the unsorted bin have their forward and backward pointers pointing to `main_arena`, we can first forge a relic (large enough to go to the unsorted bin), destroy it, and then using the use after free vuln to inspect it.
+First, we need a libc leak. We can obtain that by leaking a pointer to `main_arena`, an area of the libc that tracks and manages the memory heap of the main thread. Since chunks in the unsorted bin have their forward and backward pointers pointing to `main_arena`, we can first forge a relic (large enough to go into the unsorted bin), destroy it, and then the use-after-free vuln to inspect it.
 
-To better visualize it, i cast: unsorted bin rappresentation ヽ(╬☉Д⊙)ﾉ\
+To better visualize it, I cast: unsorted bin representation ヽ(╬☉Д⊙)ﾉ\
 ![i love to write cringe titles](unsorted.png)
 
 
@@ -124,21 +124,21 @@ destroy(2)
 leak = u64(inspect(2).ljust(8,b'\x00'))
 ```
 
-In your exploit, this will work just fine, but if you are debugging it with, for example, pwndbg, it's better to stop before the printed message and look at the bins, then verify your assumptions with `vmmap`
+In your exploit, this will work just fine, but if you are debugging it with, for example, pwndbg, it's better to stop before message is printed and look at the bins, then verify your assumptions with `vmmap`
 
 ![pwndbg rules!](images/pwntools.png)
 
 _Cool, first leak obtained._
 
-Thanks to the secret knowledge of the above image, we know that we need `environ` to obtain a stack leak. But hey! What the hell is it? A 9th level spell? A ultra legendary sword? We must interrogate the Prophetic Unicorn!
+Thanks to the secret knowledge from the image above, we know that we need `environ` to obtain a stack leak. But hey! What the hell is it? A 9th-level spell? An ultra-legendary sword? We must interrogate the Prophetic Unicorn!
 
 ![The Prophetic Unicorn shares his knowledge](images/unicornsay.png)
 
 
-*(TL;DR) is a variable in `libc` that contains a pointer to the stack, we can use it to leak the stack.*
+*(TL;DR) is a variable in `libc` that contains a pointer to the stack. We can use it to leak the stack.*
 
 
-Thanks Wise Unicorn, now we can calculate `environ_address`
+Thanks Wise Unicorn. Now we can calculate `environ_address`
 ```Python
 lbc_offset = 0x7ffff7fbfbe0 - 0x00007ffff7dd3000 # static values of libc leak - libc base
 libc_base = leak - lbc_offset
@@ -147,7 +147,7 @@ environ_addr = libc_base + libc.symbols['environ']
 
 #### And now, let's poison some tcache (⌐■-■)
 
-We allocate two memory chunks of 16 bytes, so that when freed they will go to the `tcache`. Then, thanks to the **use after free** vuln, we inscribe the `environ` address into the last freed chunk. In this way, the forward pointer of the first chunk will be overwritten with the `environ` address. We forge other two chunks, so that the first one will be the actual list's head and the other will be what it was pointing to. In our case, `environ` itself
+We allocate two 16 bytes memory chunks, so that when they are freed they will go to the `tcache`. Then, thanks to the **use-after-free** vuln, we inscribe the `environ` address into the last freed chunk. In this way, the forward pointer of the first chunk will be overwritten with the `environ` address. We forge two other chunks, so that the first one will be the actual list's head and the other will be what it was pointing to. In our case, `environ` itself
 
 ```Python
 forge(4,16)
@@ -161,7 +161,7 @@ stack_leak = u64(inspect(7).ljust(8,b"\x00"))
 ```
 *Note: Here we are writing the raw environ_addr directly into the freed chunk's forward pointer. This  works because our libc is older than 2.32. If Safe-Linking was enabled, we would have needed an additional heap leak to bypass the pointer mangling (XORing the pointer before writing it).*
 
-Inspecting it, will give us the content of `environ`, our stack leak!
+Inspecting it, will give us the contents of `environ`, our stack leak!
 ![I'm always right](images/stackleak.png)
 
 With our juicy stack leak, we can calculate the return address of inscribe, since it will be the last function called to write the shellcode, and use it later to return to `return_address+8`
@@ -185,7 +185,7 @@ ret_addr = stack_leak - stack_offset
 ```
 
 Time for the last tcache poisoning\
-As above, we forge and destroy  two chunks, we inscript the return address in the head chunk so that the second reforged chunk starts at the return address, where it will be overwritten by the address at which our shellcode begins, `return_addres+8`.
+As above, we forge and destroy  two chunks. We write the return address into the head chunk so that the second re-forged chunk starts at the return address, where it will be overwritten with the address at which our shellcode begins, `return_address+8`.
 
 ```Python
 # chunk pointing to retrun address
@@ -202,14 +202,14 @@ inscribe(15,p64(ret_addr+8)+payload)
 p.interactive()
 ```
 
-and when `inscribe_relic` returns, boom, we pwned it  ヽ(^ ᗨ ^)ノ
+And when `inscribe_relic` returns, boom, we pwned it  ヽ(^ ᗨ ^)ノ
 
 ---
 
-### My useless considerations
+### My useless thoughts
 
-it was my first heap challenge and a funny one, since it was not super straightforward and helped me understand how the heap functions (or, at least, a part of it).
-Thanks to @Ub1k for the guidance and @Serotav and @Marco for the learning material!
+It was my first heap challenge and it was a fun one, since it was not super straightforward and helped me understand how the heap works (or, at least, part of it).
+Thanks to @Ub1k for the guidance, to @Serotav and @Marco for the learning material and to Rachele for reviewing my bad english!
 
 other useful links to learn about tcache poisoning:\
 https://tripoloski1337.github.io/research/2019/09/09/tcache_poisoning.html
