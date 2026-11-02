@@ -107,14 +107,14 @@ STEP 5: malloc() -> returns TARGET address!
 
 Then, we will likely end up writing shellcode since NX is disabled. Also, I'm a big fan of this photo, which contains the secret to unlocking the ultimate skill: **Pivoting Around Memory**
 
-![Pivoting around memory from https://blog.osiris.cyber.nyu.edu/2019/04/06/pivoting-around-memory/](images/pivoting)
+![Pivoting around memory from https://blog.osiris.cyber.nyu.edu/2019/04/06/pivoting-around-memory/](images/pivoting.png)
 
 From here, we have all we need to define a strategy.
 
 First, we need a libc leak. We can obtain that by leaking a pointer to `main_arena`, an area of the libc that tracks and manages the memory heap of the main thread. Since chunks in the unsorted bin have their forward and backward pointers pointing to `main_arena`, we can first forge a relic (large enough to go into the unsorted bin), destroy it, and then the use-after-free vuln to inspect it.
 
 To better visualize it, I cast: unsorted bin representation ヽ(╬☉Д⊙)ﾉ\
-![i love to write cringe titles](unsorted.png)
+![i love to write cringe titles](images/unsorted.png)
 
 
 ```Python
