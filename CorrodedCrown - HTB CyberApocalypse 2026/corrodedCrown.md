@@ -36,7 +36,7 @@ This is a **use-after-free** vulnerability! We will need that later
 There are two other significant details:
 by running `checksec --file=corroded_crown` we can see that NX is disabled. Second, the .zip file contains a `glibc` directory, where we can find the libc version. In this case:
 ```bash
-strings libc.so.6 | grep "GNU C Library"
+./ld-linux-x86-64.so.2 ./libc.so.6
 GNU C Library (Ubuntu GLIBC 2.31-0ubuntu9.17) stable release version 2.31.
 ``` 
 *Cool, Safe Linking is not available in this version of libc, so we can write raw pointers without needing an additional heap leak to bypass pointer mangling (XORing the pointer before writing it)*
