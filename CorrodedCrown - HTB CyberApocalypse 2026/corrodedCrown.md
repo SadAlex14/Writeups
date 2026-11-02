@@ -209,7 +209,7 @@ And when `inscribe_relic` returns, boom, we pwned it  ヽ(^ ᗨ ^)ノ
 ### My useless thoughts
 
 It was my first heap challenge and it was a fun one, since it was not super straightforward and helped me understand how the heap works (or, at least, part of it).
-Thanks to @Ub1k for the guidance, to @Serotav and @Marco for the learning material and to Rachele for reviewing my bad english!
+Thanks to @Ub1k for the guidance, to @Serotav and @Marco for the learning material and to Rachele, the all-knowing eldritch entity, for reviewing my bad english!
 
 other useful links to learn about tcache poisoning:\
 https://tripoloski1337.github.io/research/2019/09/09/tcache_poisoning.html
